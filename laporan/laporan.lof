@@ -1,0 +1,7 @@
+\babel@toc {indonesian}{}\relax 
+\contentsline {figure}{\numberline {1}{\ignorespaces Alur Pemrosesan Request pada Server S.C.A.R.}}{10}{figure.caption.3}%
+\contentsline {figure}{\numberline {2}{\ignorespaces Tampilan kode \texttt {server.py} di Visual Studio Code}}{15}{figure.caption.6}%
+\contentsline {figure}{\numberline {3}{\ignorespaces Tampilan halaman honeypot di browser (\texttt {http://localhost:8000})}}{15}{figure.caption.7}%
+\contentsline {figure}{\numberline {4}{\ignorespaces Output terminal server saat mendeteksi ancaman dan mengaktifkan tarpit}}{20}{figure.caption.10}%
+\contentsline {figure}{\numberline {5}{\ignorespaces Output simulasi serangan --- request normal berhasil, request serangan terjebak tarpit}}{21}{figure.caption.11}%
+\contentsline {figure}{\numberline {6}{\ignorespaces Alert S.C.A.R. yang diterima di grup Telegram}}{21}{figure.caption.12}%

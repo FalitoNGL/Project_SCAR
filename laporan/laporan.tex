@@ -1,0 +1,350 @@
+\documentclass[12pt,a4paper]{article}
+
+% ============================================================
+% PACKAGES
+% ============================================================
+\usepackage[indonesian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{times}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usepackage{indentfirst}
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit}
+
+% ============================================================
+% KONFIGURASI
+% ============================================================
+\setstretch{1.05}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0.5em}
+
+\renewcommand{\thesection}{BAB \Roman{section}}
+\renewcommand{\thesubsection}{\arabic{section}.\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+
+\titleformat{\section}[block]
+  {\normalfont\Large\bfseries\centering}
+  {BAB \Roman{section}\\}{0pt}
+  {\vspace{0.3cm}\MakeUppercase}
+\titlespacing*{\section}{0pt}{1cm}{0.8cm}
+
+% Fix TOC width for "BAB I", "BAB II", etc.
+\makeatletter
+\renewcommand{\l@section}{\@dottedtocline{1}{0em}{5em}}
+\renewcommand{\l@subsection}{\@dottedtocline{2}{5em}{2.5em}}
+\renewcommand{\l@subsubsection}{\@dottedtocline{3}{7.5em}{3.2em}}
+\makeatother
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=black,
+    urlcolor=black,
+    citecolor=black
+}
+
+\lstdefinestyle{pythonstyle}{
+    language=Python,
+    backgroundcolor=\color{gray!10},
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    stringstyle=\color{red},
+    commentstyle=\color{green!60!black}\itshape,
+    numberstyle=\tiny\color{gray},
+    numbers=left,
+    numbersep=8pt,
+    frame=single,
+    breaklines=true,
+    showstringspaces=false,
+    tabsize=4,
+    captionpos=b
+}
+\lstset{style=pythonstyle}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\begin{document}
+
+% ============================================================
+% HALAMAN JUDUL
+% ============================================================
+\begin{titlepage}
+    \centering
+    {\LARGE\textbf{LAPORAN PROYEK AKHIR}\par}
+    \vspace{0.3cm}
+    {\Large\textbf{PEMROGRAMAN JARINGAN}\par}
+    \vspace{0.8cm}
+    {\Huge\textbf{S.C.A.R.}\par}
+    \vspace{0.3cm}
+    {\Large\textit{System for Countering Automated Reconnaissance}\par}
+    \vspace{0.5cm}
+    {\large Active Defense Honeypot dengan Multi-Layer AI\\dan Tarpit Resource Exhaustion\par}
+    \vspace{0.5cm}
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=5cm]{logo.png}
+    \end{figure}
+    \vspace{0.3cm}
+
+    {\large\textbf{Disusun oleh:}\par}
+    \vspace{0.5cm}
+    {\large
+    \begin{tabular}{ll}
+        Falito Eriano Nainggolan & (2423102023) \\
+        Luklu Miranda & (2423102039) \\
+        Reiza Gerrard Rizki Ramadhan & (2423102070) \\
+    \end{tabular}
+    \par}
+
+    \vspace{0.5cm}
+
+    {\large\textbf{Dosen Pengampu:}\par}
+    \vspace{0.3cm}
+    {\large Bapak Agus Winarno, S.S.T.TP, M.T.\par}
+
+    \vspace{0.8cm}
+
+    {\large
+    \textbf{Tingkat II Rekayasa Keamanan Siber A}\\
+    \vspace{0.3cm}
+    \textbf{POLITEKNIK SIBER DAN SANDI NEGARA}\\
+    \vspace{0.3cm}
+    \textbf{Semester Gasal 2025/2026}\\
+    }
+\end{titlepage}
+
+\newpage
+\tableofcontents
+\newpage
+\listoffigures
+\listoftables
+\newpage
+
+% ============================================================
+% BAB 1: PENDAHULUAN
+% ============================================================
+\clearpage
+\section{Pendahuluan}
+
+\subsection{Latar Belakang}
+
+Dalam konteks pemrograman jaringan, server HTTP merupakan salah satu komponen fundamental yang berperan sebagai titik masuk utama komunikasi antara klien dan layanan. Server menerima \textit{request} dari klien melalui protokol TCP/IP, memproses \textit{request} tersebut, dan mengirimkan \textit{response} melalui \textit{socket} jaringan. Akan tetapi, setiap server yang terekspos ke jaringan publik secara inheren menjadi vektor serangan potensial bagi aktor ancaman siber.
+
+Berdasarkan data yang dipublikasikan dalam \textit{Verizon Data Breach Investigations Report} (2024), serangan terhadap aplikasi web mengalami peningkatan sebesar 30\% secara tahunan. Server yang terhubung ke internet menerima ratusan \textit{request} pemindaian otomatis setiap harinya, yang berasal dari \textit{bot}, \textit{scanner}, maupun \textit{script} berbahaya. Serangan seperti \textit{SQL Injection}, \textit{Directory Traversal}, dan \textit{Automated Reconnaissance} merupakan ancaman utama yang harus dimitigasi oleh setiap pengelola server jaringan.
+
+Konsep \textit{honeypot}, yang diperkenalkan pertama kali oleh Lance Spitzner dalam karyanya \textit{``Honeypots: Tracking Hackers''} (2003), merujuk pada server umpan yang sengaja dirancang untuk menarik dan mempelajari perilaku penyerang. Konsep ini memanfaatkan pemahaman mendalam tentang protokol jaringan --- meliputi mekanisme \textit{TCP three-way handshake}, siklus \textit{HTTP request-response}, serta manipulasi pada level protokol untuk tujuan defensif.
+
+Proyek \textbf{S.C.A.R. (\textit{System for Countering Automated Reconnaissance})} mengembangkan konsep \textit{honeypot} konvensional dengan mengimplementasikan paradigma \textbf{\textit{Active Defense}}. Berbeda dengan \textit{honeypot} tradisional yang bersifat pasif (hanya mencatat aktivitas serangan), S.C.A.R. secara aktif memanfaatkan karakteristik protokol HTTP dan mekanisme koneksi TCP untuk \textbf{menjebak} penyerang melalui teknik \textit{Tarpit} (\textit{Resource Exhaustion}). Teknik ini mengeksploitasi spesifikasi \textit{chunked transfer encoding} pada HTTP/1.1 untuk mempertahankan koneksi TCP tetap terbuka dan menguras sumber daya komputasi di sisi penyerang --- sebuah pendekatan yang dikenal sebagai \textit{TCP state exhaustion} dan \textit{HTTP response stream manipulation}.
+
+Secara spesifik, proyek ini mengintegrasikan aspek-aspek inti pemrograman jaringan sebagai berikut:
+\begin{itemize}
+    \item \textbf{\textit{Socket Programming}} --- Pembangunan server HTTP menggunakan modul \texttt{http.server} dan \texttt{socketserver} Python yang beroperasi pada level \textit{socket} TCP.
+    \item \textbf{Manipulasi Protokol HTTP} --- Pemanfaatan \textit{headers}, \textit{status codes}, dan \textit{transfer encoding} untuk keperluan pertahanan aktif.
+    \item \textbf{Integrasi REST API} --- Komunikasi dengan layanan eksternal (AbuseIPDB, Telegram Bot) melalui protokol HTTP sebagai \textit{client}.
+    \item \textbf{\textit{Concurrency}} --- Penerapan \textit{multi-threading} untuk penanganan koneksi simultan dan operasi I/O \textit{non-blocking}.
+    \item \textbf{\textit{Machine Learning}} --- Pemanfaatan model AI sebagai komponen analisis lalu lintas jaringan secara \textit{real-time}.
+\end{itemize}
+
+\subsection{Rumusan Masalah}
+
+\begin{enumerate}[label=\arabic*.]
+    \item Bagaimana membangun server HTTP menggunakan Python yang mampu menangani request masuk, menganalisis kontennya, dan memberikan respons yang sesuai secara \textit{real-time}?
+    \item Bagaimana memanipulasi protokol HTTP (khususnya \textit{chunked transfer encoding} dan \textit{custom headers}) untuk mengimplementasikan mekanisme \textit{Tarpit} yang efektif menghabiskan sumber daya penyerang?
+    \item Bagaimana mengintegrasikan layanan API eksternal (AbuseIPDB, Telegram Bot API) ke dalam server melalui komunikasi HTTP \textit{client-side}?
+    \item Bagaimana menerapkan \textit{multi-threading} agar server tetap responsif saat menangani koneksi tarpit dan pengiriman notifikasi secara bersamaan?
+\end{enumerate}
+
+\subsection{Tujuan Proyek}
+
+\begin{enumerate}[label=\arabic*.]
+    \item Membangun server HTTP aktif berbasis Python yang berfungsi sebagai honeypot dengan kemampuan \textit{Active Defense}.
+    \item Mengimplementasikan mekanisme \textit{Tarpit} yang memanfaatkan \textit{chunked transfer encoding} HTTP untuk menjebak dan menghabiskan sumber daya penyerang.
+    \item Mengintegrasikan AI (\textit{Machine Learning}) sebagai komponen analisis lalu lintas jaringan untuk mendeteksi serangan secara otomatis.
+    \item Mengintegrasikan API eksternal (AbuseIPDB dan Telegram Bot) melalui HTTP REST API untuk \textit{threat intelligence} dan notifikasi.
+    \item Menerapkan arsitektur \textit{multi-threaded} untuk menangani operasi I/O non-blocking.
+\end{enumerate}
+
+\subsection{Batasan Proyek}
+
+\begin{enumerate}[label=\arabic*.]
+    \item Server dibangun menggunakan modul \texttt{http.server} dari pustaka standar Python.
+    \item Sistem dirancang untuk berjalan pada lingkungan lokal atau server tunggal.
+    \item Pengujian dilakukan menggunakan \textit{script} simulasi serangan.
+    \item Model AI dilatih menggunakan dataset publik yang tersedia secara gratis.
+\end{enumerate}
+
+% ============================================================
+% BAB 2: TINJAUAN PUSTAKA
+% ============================================================
+\clearpage
+\section{Tinjauan Pustaka}
+
+\subsection{Protokol HTTP dan Arsitektur Request-Response}
+
+HTTP (\textit{Hypertext Transfer Protocol}), didefinisikan dalam RFC 2616, adalah protokol \textit{application layer} yang berjalan di atas koneksi TCP. Setiap komunikasi HTTP mengikuti pola \textit{request-response}:
+
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{Klien} membuka koneksi TCP ke server (biasanya port 80 atau 8080).
+    \item Klien mengirim \textbf{HTTP Request} yang terdiri dari: \textit{request line} (metode, path, versi), \textit{headers}, dan opsional \textit{body}.
+    \item \textbf{Server} menerima request, memproses, dan mengirim \textbf{HTTP Response} yang terdiri dari: \textit{status line} (kode status), \textit{headers}, dan \textit{body}.
+    \item Koneksi bisa dipertahankan (\textit{keep-alive}) atau ditutup.
+\end{enumerate}
+
+Pemahaman mendalam tentang siklus ini sangat penting dalam S.C.A.R. karena mekanisme tarpit bekerja dengan cara memanipulasi tahap ke-3 --- mengirim response yang \textbf{tidak pernah selesai}.
+
+\subsection{Transfer-Encoding: Chunked}
+
+\textit{Chunked Transfer Encoding} (RFC 2616, Section 3.6.1) adalah mekanisme HTTP yang memungkinkan server mengirim data secara bertahap tanpa harus mengetahui total ukuran konten di awal. Format pengiriman:
+
+\begin{lstlisting}[language={}, caption={Format Chunked Transfer Encoding}]
+HTTP/1.1 200 OK
+Transfer-Encoding: chunked
+
+[ukuran chunk dalam hex]\r\n
+[data chunk]\r\n
+[ukuran chunk berikutnya]\r\n
+[data chunk berikutnya]\r\n
+0\r\n                          (chunk terakhir, ukuran 0)
+\r\n                           (trailer kosong)
+\end{lstlisting}
+
+Fitur kunci yang dieksploitasi oleh S.C.A.R.: selama server belum mengirim chunk terakhir (ukuran 0), \textbf{klien wajib menunggu} data tambahan. Ini adalah dasar mekanisme tarpit --- server mengirim data sampah secara terus-menerus dengan jeda yang panjang, memaksa klien tetap terhubung.
+
+\subsection{Socket Programming dan http.server Python}
+
+Modul \texttt{http.server} Python dibangun di atas modul \texttt{socketserver} yang menyediakan abstraksi \textit{socket} TCP. Arsitekturnya:
+
+\begin{itemize}
+    \item \texttt{TCPServer}: Mengelola \textit{socket} server, melakukan \texttt{bind()} dan \texttt{listen()} pada port tertentu.
+    \item \texttt{BaseHTTPRequestHandler}: Menangani setiap koneksi TCP yang masuk, mem-\textit{parse} HTTP request, dan memanggil metode \texttt{do\_GET()}, \texttt{do\_POST()}, dll.
+    \item \texttt{self.wfile}: \textit{File-like object} yang terhubung langsung ke \textit{socket} klien, memungkinkan penulisan data langsung ke koneksi TCP.
+\end{itemize}
+
+Akses langsung ke \texttt{self.wfile} sangat krusial untuk implementasi tarpit, karena memungkinkan pengiriman data byte-per-byte langsung ke \textit{socket} tanpa buffering HTTP standar.
+
+\subsection{Honeypot dalam Keamanan Jaringan}
+
+\textit{Honeypot}, menurut Lance Spitzner, adalah ``sumber daya keamanan informasi yang nilainya terletak pada interaksi yang tidak sah.'' Dari perspektif pemrograman jaringan, honeypot adalah server yang sengaja menyediakan \textit{service} palsu (HTTP, SSH, FTP) untuk menarik dan mempelajari penyerang.
+
+Klasifikasi berdasarkan interaksi:
+\begin{itemize}
+    \item \textbf{Low-Interaction}: Mengemulasi layanan jaringan secara terbatas. Aman, mudah di-\textit{deploy}.
+    \item \textbf{High-Interaction}: Menyediakan layanan nyata. Informatif tetapi berisiko.
+\end{itemize}
+
+S.C.A.R. termasuk \textit{Low-Interaction Honeypot} dengan kemampuan \textit{Active Defense} --- memadukan keamanan \textit{low-interaction} dengan agresivitas \textit{active defense}.
+
+\subsection{Tarpit sebagai Mekanisme Pertahanan Aktif}
+
+\textit{Tarpit} (atau \textit{tar pit}) merupakan teknik manipulasi koneksi jaringan yang bertujuan memperlambat komunikasi secara drastis melalui \textit{TCP state exhaustion}. Terminologi ini terinspirasi dari fenomena lubang aspal alami (\textit{La Brea Tar Pits}) yang menjebak organisme purba. Tom Liston mengimplementasikan konsep ini pertama kali dalam proyek \textit{LaBrea Tarpit} (2003) sebagai mekanisme pertahanan terhadap propagasi \textit{worm} jaringan.
+
+Dari perspektif pemrograman jaringan, mekanisme tarpit beroperasi melalui tiga prinsip utama:
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{\textit{TCP State Exhaustion}} --- Server mempertahankan koneksi TCP dalam state \texttt{ESTABLISHED} tanpa batas waktu, sehingga \textit{socket file descriptor}, \textit{thread}, dan alokasi memori di sisi klien tetap terpakai dan tidak dapat didaur ulang.
+    \item \textbf{\textit{HTTP Response Stream Manipulation}} --- Server mengeksploitasi mekanisme \textit{chunked transfer encoding} untuk mengirimkan data \textit{garbage} secara kontinu dengan interval yang diperpanjang (\textit{slow drip}), memaksa klien tetap dalam mode \textit{receive-wait}.
+    \item \textbf{\textit{Connection Pool Saturation}} --- Setiap koneksi tarpit mengikat satu \textit{connection pool entry} pada sisi penyerang, sehingga kapasitas \textit{concurrent connection} penyerang terdegradasi secara progresif.
+\end{enumerate}
+
+Keunggulan pendekatan tarpit dibandingkan pemblokiran konvensional (\textit{firewall drop/reject}):
+\begin{itemize}
+    \item Penyerang \textbf{tidak mengetahui} bahwa identitasnya telah terdeteksi, karena server tetap mengirimkan respons awal \texttt{HTTP 200 OK} yang valid.
+    \item \textit{Tool} otomatis (SQLMap, Nikto, DirBuster) mengalami kondisi \textit{hang} akibat menunggu penyelesaian transfer yang tidak pernah berakhir.
+    \item Kecepatan \textit{scanning} otomatis terdegradasi secara signifikan, memberikan waktu tambahan bagi administrator untuk melakukan mitigasi.
+\end{itemize}
+
+\subsection{REST API dan Integrasi Layanan Eksternal}
+
+REST (\textit{Representational State Transfer}) API adalah arsitektur komunikasi jaringan yang menggunakan protokol HTTP standar untuk pertukaran data antar sistem. Dalam S.C.A.R., server bertindak sebagai \textbf{HTTP client} ketika berkomunikasi dengan layanan eksternal:
+
+\begin{itemize}
+    \item \textbf{AbuseIPDB API}: Server mengirim HTTP GET request ke \texttt{api.abuseipdb.com} untuk memeriksa reputasi IP. Response berupa JSON yang berisi skor kepercayaan.
+    \item \textbf{Telegram Bot API}: Server mengirim HTTP POST request ke \texttt{api.telegram.org} untuk mengirim notifikasi. Data dikirim dalam format JSON menggunakan \texttt{Content-Type: application/json}.
+\end{itemize}
+
+Kedua API ini mendemonstrasikan konsep penting dalam pemrograman jaringan: sebuah aplikasi dapat bertindak sebagai \textbf{server dan client secara bersamaan} --- menerima koneksi dari penyerang (server) sambil mengirim request ke layanan luar (client).
+
+\subsection{Threading dan Concurrency dalam Server Jaringan}
+
+Dalam pemrograman jaringan, \textit{concurrency} sangat penting karena server harus menangani banyak koneksi secara bersamaan. Python menyediakan modul \texttt{threading} yang memungkinkan eksekusi paralel.
+
+Dalam S.C.A.R., threading digunakan untuk:
+\begin{itemize}
+    \item \textbf{ThreadingTCPServer}: Setiap koneksi klien ditangani oleh \textit{thread} terpisah, sehingga satu koneksi tarpit tidak memblokir klien lain.
+    \item \textbf{Non-blocking API calls}: Pengiriman alert Telegram dilakukan di \textit{background thread} agar proses tarpit tidak tertunda oleh latensi jaringan.
+    \item \textbf{Thread-safe caching}: Hasil pengecekan AbuseIPDB di-\textit{cache} menggunakan \texttt{threading.Lock()} untuk menghindari \textit{race condition}.
+\end{itemize}
+
+\subsection{\textit{Machine Learning} sebagai Komponen Analisis Lalu Lintas Jaringan}
+
+Dalam konteks pemrograman jaringan, \textit{Machine Learning} (ML) digunakan sebagai komponen analisis cerdas yang memproses data dari lalu lintas jaringan (\textit{HTTP request}) untuk mengklasifikasikan setiap \textit{request} sebagai normal atau ancaman secara otomatis. S.C.A.R. mengintegrasikan empat model ML yang masing-masing menganalisis aspek berbeda dari \textit{request} HTTP:
+
+\begin{table}[H]
+\centering
+\caption{Model AI dan Data Jaringan yang Dianalisis}
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+\textbf{Model} & \textbf{Algoritma} & \textbf{Data Jaringan yang Dianalisis} \\
+\midrule
+URL Threat & Logistic Regression & URL \textit{path} dari \textit{request line} HTTP \\
+SQL Injection & Logistic Regression & \textit{Query string} dan \textit{body} dari HTTP \textit{request} \\
+HTTP Behavior & Random Forest & Fitur statistik: panjang URL, jumlah parameter, metode HTTP \\
+Anomaly Detection & Isolation Forest & Profil keseluruhan \textit{request} dibandingkan \textit{baseline} normal \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Pemilihan algoritma \textit{Random Forest} (Breiman, 2001) untuk model HTTP Behavior didasarkan pada kemampuannya menangani fitur heterogen (numerik dan kategorikal) serta resistensinya terhadap \textit{overfitting} melalui mekanisme \textit{ensemble} dari multiple \textit{decision trees}. Sementara itu, \textit{Isolation Forest} (Liu et al., 2008) dipilih untuk deteksi anomali karena sifatnya yang \textit{unsupervised} --- tidak memerlukan label serangan eksplisit, melainkan mengidentifikasi \textit{request} yang menyimpang secara statistik dari distribusi normal. Pendekatan ini memungkinkan deteksi pola serangan \textit{zero-day} yang belum terdokumentasi dalam basis data aturan statis.
+
+Pemilihan seluruh algoritma juga didasarkan pada efisiensi komputasi prediksi \textit{real-time}, yang merupakan persyaratan kritis untuk server jaringan --- setiap \textit{request} harus dianalisis tanpa menimbulkan latensi yang terdeteksi oleh klien.
+
+\input{bab3_implementasi}
+
+% ============================================================
+% DAFTAR PUSTAKA
+% ============================================================
+\newpage
+\begin{thebibliography}{99}
+\addcontentsline{toc}{section}{Daftar Pustaka}
+
+\bibitem{spitzner2003} 
+Spitzner, L. (2003). \textit{Honeypots: Tracking Hackers}. Addison-Wesley Professional.
+
+\bibitem{liston2003} 
+Liston, T. (2003). \textit{LaBrea Tarpit: Sticky Honeypots}. Available at: \url{http://labrea.sourceforge.net/}.
+
+\bibitem{breiman2001} 
+Breiman, L. (2001). Random Forests. \textit{Machine Learning}, 45(1), 5-32.
+
+\bibitem{liu2008} 
+Liu, F. T., Ting, K. M., \& Zhou, Z. H. (2008). Isolation Forest. \textit{Eighth IEEE International Conference on Data Mining}, 413-422.
+
+\bibitem{verizon2024} 
+Verizon. (2024). \textit{2024 Data Breach Investigations Report (DBIR)}. Verizon Business.
+
+\bibitem{rfc2616} 
+Fielding, R., et al. (1999). \textit{Hypertext Transfer Protocol -- HTTP/1.1}. RFC 2616, IETF.
+
+\bibitem{python3} 
+Python Software Foundation. (2024). \textit{Python Standard Library Documentation: http.server \& socketserver}. Available at: \url{https://docs.python.org/3/library/}.
+
+\end{thebibliography}
+
+\end{document}
