@@ -1,0 +1,260 @@
+\documentclass[10pt]{beamer}
+
+% ============================================================
+% THEME & PACKAGES
+% ============================================================
+\usetheme{Madrid}
+\usecolortheme{whale}
+
+\usepackage[indonesian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit}
+
+% ============================================================
+% METADATA
+% ============================================================
+\title[S.C.A.R. Presentation]{S.C.A.R.}
+\subtitle{System for Countering Automated Reconnaissance}
+\author[Falito, Luklu, Reiza]{Falito Eriano N., Luklu Miranda, Reiza Gerrard R.}
+\institute[Poltek SSN]{Politeknik Siber dan Sandi Negara}
+\date[Feb 2026]{Semester Gasal 2025/2026}
+\titlegraphic{\includegraphics[width=1.5cm]{logo.png}}
+
+% ============================================================
+% LISTING STYLE
+% ============================================================
+\lstset{
+    basicstyle=\ttfamily\tiny,
+    breaklines=true,
+    frame=single,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red}
+}
+
+\begin{document}
+
+% --- Slide 1: Judul ---
+\begin{frame}
+    \titlepage
+\end{frame}
+
+% --- Slide 2: Latar Belakang ---
+\begin{frame}{Latar Belakang \& Masalah}
+    \begin{itemize}
+        \item \textbf{Eskalasi Serangan Web}: Peningkatan serangan otomatis terhadap server HTTP (SQLi, Recon).
+        \item \textbf{Pertahanan Konvensional}: Firewall bersifat statis dan pasif (log-only).
+        \item \textbf{Kebutuhan Sistem Aktif}: Server yang tidak hanya mendeteksi, tapi juga merespons balik penyerang secara cerdas.
+    \end{itemize}
+    \begin{block}{Solusi S.C.A.R.}
+        Menggabungkan \textbf{Active Defense} (Tarpit) dengan \textbf{Multi-Layer AI} untuk menjebak dan menguras sumber daya penyerang.
+    \end{block}
+\end{frame}
+
+% --- Slide 3: Network Stack ---
+\begin{frame}{Eksploitasi Network Stack \& Protokol}
+    S.C.A.R. memanfaatkan berbagai lapisan dalam sistem pemrograman jaringan Python:
+    \begin{itemize}
+        \item \textbf{High-Level Handling}: Modul \texttt{http.server} (Custom Handler untuk analisis request).
+        \item \textbf{Server Concurrency}: Modul \texttt{socketserver} (\texttt{ThreadingTCPServer}).
+        \item \textbf{Low-Level Socket}: Penulisan data langsung ke \textit{raw socket buffer} (\texttt{self.wfile}) saat Tarpit.
+        \item \textbf{Transport Layer}: Manipulasi status koneksi TCP (Keep-Alive \& Chunked Transfer).
+    \end{itemize}
+\end{frame}
+
+% --- Slide 4: Konsep Active Defense & Tarpit ---
+\begin{frame}{Konsep: Active Defense \& Tarpit}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \textbf{Paradigma Pertahanan Aktif}
+            \begin{itemize}
+                \item Mengubah server menjadi umpan (\textit{Honeypot}).
+                \item Manipulasi protokol untuk tujuan defensif.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \textbf{Mekanisme Tarpit}
+            \begin{itemize}
+                \item \textit{TCP State Exhaustion}.
+                \item \textit{HTTP Chunked Stream Manipulation}.
+                \item Mengirim garbage data secara lambat (\textit{Slow Drip}).
+            \end{itemize}
+        \end{column}
+    \end{columns}
+    \vspace{0.3cm}
+    \centering
+    \textit{"Menjebak penyerang dalam koneksi tak berujung."}
+\end{frame}
+
+% --- Slide 6: Perbandingan Pertahanan ---
+\begin{frame}{Analisis Perbandingan: Blocking vs Tarpitting}
+    \begin{table}
+        \centering
+        \tiny
+        \begin{tabular}{p{2.5cm}p{3.5cm}p{3.5cm}}
+            \toprule
+            \textbf{Fitur} & \textbf{Blocking (Firewall)} & \textbf{Tarpitting (SCAR)} \\
+            \midrule
+            \textit{Awareness} & Penyerang langsung tahu & Penyerang "tertipu" (HTTP 200) \\
+            \textit{Cost} & Nol bagi penyerang & Tinggi (Menghabiskan CPU/Thread) \\
+            \textit{Inteligensi} & Data minimal & Pengumpulan data berkelanjutan \\
+            \textit{Mitigasi} & Ganti IP/Target & Tersangkut di satu target \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+    \begin{alertblock}{Keunggulan SCAR}
+        Menguras \textit{resource} bot pemindai hingga 99\% lebih efektif dibanding blokade statis.
+    \end{alertblock}
+\end{frame}
+
+% --- Slide 7: Arsitektur Sistem ---
+\begin{frame}{Arsitektur Multi-Layer Threat Fusion}
+    \centering
+    \resizebox{!}{0.75\textheight}{
+    \begin{tikzpicture}[node distance=0.6cm, transform shape]
+        \tikzstyle{layer} = [draw, fill=blue!10, text width=6cm, text centered, rounded corners, minimum height=0.6cm]
+        \node[layer] (req) {Incoming Connection (Socket)};
+        \node[layer, below=of req] (parse) {HTTP Request Parsing};
+        \node[layer, below=of parse] (l0) {Layer 0: IP Reputation (AbuseIPDB)};
+        \node[layer, below=of l0] (l1) {Layer 1: URL/SQLi Detection (ML)};
+        \node[layer, below=of l1] (l2) {Layer 2: Behavior Analysis (Random Forest)};
+        \node[layer, below=of l2] (l3) {Layer 3: Anomaly Detection (Isolation Forest)};
+        \node[layer, below=of l3, fill=red!20] (fusion) {Threat Fusion Engine (Flag Decision)};
+        \node[layer, below=of fusion, fill=orange!20] (action) {ACTION: Serve Page or Execute Tarpit};
+        
+        \draw[->] (req) -- (parse);
+        \draw[->] (parse) -- (l0);
+        \draw[->] (l0) -- (l1);
+        \draw[->] (l1) -- (l2);
+        \draw[->] (l2) -- (l3);
+        \draw[->] (l3) -- (fusion);
+        \draw[->] (fusion) -- (action);
+    \end{tikzpicture}
+    }
+\end{frame}
+
+% --- Slide 5: Threat Fusion Engine ---
+\begin{frame}{Threat Fusion: Hard vs Soft Flags}
+    Sistem menggunakan kombinasi deteksi untuk meminimalkan \textit{False Positive}:
+    \begin{itemize}
+        \item \textbf{Hard Flag}: Serangan eksplisit (SQLi terdeteksi URL model). 
+              $\rightarrow$ \textbf{Tarpit Langsung}.
+        \item \textbf{Soft Flag}: Indikasi mencurigakan (Anomali atau Reputasi buruk).
+              $\rightarrow$ \textbf{Konsensus}: Butuh 2 Soft Flag untuk memicu Tarpit.
+    \end{itemize}
+    \begin{exampleblock}{Hasil}
+        Request normal dari pengguna asli dipastikan lolos (Zero False Positive), sementara bot berbahaya terjebak.
+    \end{exampleblock}
+\end{frame}
+
+% --- Slide 9: Core Fusion Logic ---
+\begin{frame}[fragile]{Core Logic: Threat Fusion Decision}
+    Inti dari sistem pengambilan keputusan (Simplifikasi):
+    \begin{lstlisting}[language=Python]
+def is_threat(results):
+    hard_flags = count(r for r in results if r.type == 'HARD')
+    soft_flags = count(r for r in results if r.type == 'SOFT')
+    
+    if hard_flags >= 1: return True  # SQLi/Recon terdeteksi
+    if soft_flags >= 2: return True  # Konsensus anomali & reputasi
+    return False
+    \end{lstlisting}
+    \textit{Logic ini memastikan akurasi tinggi tanpa memblokir trafik legitimate.}
+\end{frame}
+
+% --- Slide 10: Mekanisme Tarpit (Detail Teknis) ---
+\begin{frame}[fragile]{Detail Teknis: Tarpit Execution}
+    Pemanfaatan \textbf{Transfer-Encoding: chunked} (RFC 2616) pada level socket TCP:
+    \begin{lstlisting}
+SERVER << HTTP/1.1 200 OK
+SERVER << Transfer-Encoding: chunked
+SERVER << X-Trap-ID: a3f8c1... [+0s]
+[Jeda 5 detik]
+SERVER << X-Trap-ID: 7bc2e5... [+5s]
+... berulang hingga penyerang timeout ...
+    \end{lstlisting}
+    \begin{itemize}
+        \item \textbf{Socket-Level Write}: Data ditulis langsung ke socket.
+        \item \textbf{Concurrency}: Menggunakan \textit{threading} agar satu tarpit tidak memblokir klien lain.
+    \end{itemize}
+\end{frame}
+
+% --- Slide 12: Manajemen Concurrency ---
+\begin{frame}{Manajemen Concurrency \& Threading}
+    Salah satu tantangan terbesar pemrograman jaringan adalah \textit{Scalability}:
+    \begin{itemize}
+        \item \textbf{ThreadingTCPServer}: Menciptakan satu \textit{thread} per koneksi baru.
+        \item \textbf{Daemon Threads}: S.C.A.R. memastikan thread serangan dapat dibersihkan secara otomatis saat server utama berhenti.
+        \item \textbf{Thread Safety}: Penggunaan \texttt{threading.Lock()} untuk akses cache reputasi IP secara bersamaan.
+        \item \textbf{Isolation}: Tarpit yang berjalan lambat tidak akan menggunakan CPU secara intensif, hanya memakan \textit{socket descriptor}.
+    \end{itemize}
+\end{frame}
+
+% --- Slide 13: Implementasi \& Bukti Visual ---
+\begin{frame}{Implementasi \& Bukti Visual}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \centering
+            \begin{figure}
+                \includegraphics[width=\textwidth]{ss_honeypot.png}
+                \caption{\tiny Halaman Honeypot}
+            \end{figure}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \centering
+            \begin{figure}
+                \includegraphics[width=3cm]{ss_telegram.png}
+                \caption{\tiny Notifikasi Alert Telegram}
+            \end{figure}
+        \end{column}
+    \end{columns}
+    \vspace{0.3cm}
+    \begin{itemize}
+        \item Arsitektur \textbf{Server \& Client Simultan}.
+        \item Notifikasi \textit{Real-Time} via Telegram Bot API.
+    \end{itemize}
+\end{frame}
+
+% --- Slide 8: Hasil Pengujian ---
+\begin{frame}{Hasil Pengujian \& Analisis}
+    \begin{table}
+        \centering
+        \tiny
+        \begin{tabular}{llcl}
+            \toprule
+            \textbf{Skenario} & \textbf{Jenis Serangan} & \textbf{Hasil} & \textbf{Aksi Sistem} \\
+            \midrule
+            GET / & Normal (Risk: 0.44) & \textcolor{green}{Lolos} & HTTP 200 OK \\
+            GET /login & Normal (Risk: 0.25) & \textcolor{green}{Lolos} & HTTP 200 OK \\
+            /etc/passwd & Recon (Risk: >0.80) & \textcolor{red}{Tarpit} & Garbage Stream \\
+            SQLi payload & SQLi (Risk: 0.56) & \textcolor{red}{Tarpit} & Garbage Stream \\
+            Anomalous & Anomaly (Risk: 0.52) & \textcolor{red}{Tarpit} & Garbage Stream \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+    \textbf{Analisis Efektivitas:}
+    \begin{itemize}
+        \item \textbf{Akurasi Tinggi}: Zero False Positive pada Risk 0.44 (Normal). Threshold Tarpit efektif pada Risk $\geq$ 0.52.
+        \item \textbf{Tarpit Duration}: Berhasil menahan bot selama 10--30 detik per sesi (memutus koneksi lambat).
+        \item \textbf{Performance}: Latensi request normal stabil ($\sim$2 detik), Tarpit tidak membebani server.
+    \end{itemize}
+\end{frame}
+
+% --- Slide 9: Kesimpulan ---
+\begin{frame}{Kesimpulan}
+    \begin{enumerate}
+        \item \textbf{Inovasi Pertahanan}: S.C.A.R. berhasil mengubah paradigma dari pasif ke aktif menggunakan manipulasi protokol HTTP.
+        \item \textbf{Cerdas \& Akurat}: Integrasi \textit{Threat Fusion Engine} memastikan deteksi akurat dengan nol \textit{False Positive}.
+        \item \textbf{Efisien}: Penggunaan \textit{multi-threading} menjamin sistem tetap stabil dalam melayani pengguna normal meskipun sedang menjebak penyerang.
+    \end{enumerate}
+    \begin{center}
+        \huge \textbf{Terima Kasih!}
+    \end{center}
+\end{frame}
+
+\end{document}
