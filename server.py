@@ -352,6 +352,14 @@ def check_ip_reputation(ip_address):
 # HTTP SERVER
 # ============================================================================
 class CustomHandler(BaseHTTPRequestHandler):
+    def handle(self):
+        try:
+            super().handle()
+        except (ConnectionResetError, BrokenPipeError):
+            pass # Suppress client disconnect errors (common with scanners)
+        except Exception as e:
+            print(f"{Colors.RED}[!] Request Error: {e}{Colors.RESET}")
+
     def generate_garbage_header(self):
         random_id = random.randint(100000, 999999)
         random_hex = secrets.token_hex(32)
