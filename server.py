@@ -15,7 +15,6 @@
 """
 
 import warnings
-# Suppress sklearn version warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 
 import argparse
@@ -37,7 +36,6 @@ import requests
 import socketserver
 
 # ============================================================================
-# LOGGING CONFIGURATION
 # ============================================================================
 logging.basicConfig(
     filename='honeypot.log',
@@ -47,7 +45,6 @@ logging.basicConfig(
 )
 
 # ============================================================================
-# ANSI COLOR CODES
 # ============================================================================
 class Colors:
     RED = '\033[91m'
@@ -63,7 +60,6 @@ class Colors:
     BG_MAGENTA = '\033[45m'
 
 # ============================================================================
-# THREAT FUSION ENGINE (MULTI-LAYER AI)
 # ============================================================================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(SCRIPT_DIR, "models")
@@ -85,7 +81,6 @@ class ThreatFusionEngine:
     def load_models(self):
         print(f"{Colors.MAGENTA}[*] Initializing Threat Fusion Engine...{Colors.RESET}")
         
-        # Phase 1: URL Model
         try:
             with open(os.path.join(MODELS_DIR, "url_model.pkl"), 'rb') as f:
                 self.models["url"] = pickle.load(f)
@@ -95,7 +90,6 @@ class ThreatFusionEngine:
         except Exception as e:
             print(f"{Colors.YELLOW}[!] Layer 1 (URL) Failed: {e}{Colors.RESET}")
 
-        # Phase 2: SQLi Model
         try:
             with open(os.path.join(MODELS_DIR, "sqli_model.pkl"), 'rb') as f:
                 self.models["sqli"] = pickle.load(f)
@@ -105,7 +99,6 @@ class ThreatFusionEngine:
         except Exception as e:
             print(f"{Colors.YELLOW}[!] Layer 2 (SQLi) Failed: {e}{Colors.RESET}")
 
-        # Phase 3: Behavior Model
         try:
             with open(os.path.join(MODELS_DIR, "behavior_model.pkl"), 'rb') as f:
                 self.models["behavior"] = pickle.load(f)
@@ -113,7 +106,6 @@ class ThreatFusionEngine:
         except Exception as e:
             print(f"{Colors.YELLOW}[!] Layer 3 (Behavior) Failed: {e}{Colors.RESET}")
 
-        # Phase 4: Anomaly Model
         try:
             with open(os.path.join(MODELS_DIR, "anomaly_model.pkl"), 'rb') as f:
                 self.models["anomaly"] = pickle.load(f)
@@ -127,10 +119,6 @@ class ThreatFusionEngine:
         try:
             vec = self.vectorizers["url"].transform([url])
             prob = self.models["url"].predict_proba(vec)[0]
-            # Classes: benign, defacement, malware, phishing. 
-            # We assume index for 'benign' is known or we sum others.
-            # To be safe without class map, max prob of non-benign?
-            # heuristic: if prediction is not benign, take max prob.
             pred_class = self.models["url"].predict(vec)[0]
             confidence = np.max(prob)
             
@@ -147,7 +135,6 @@ class ThreatFusionEngine:
         try:
             if not payload: return 0.0
             vec = self.vectorizers["sqli"].transform([str(payload)])
-            # Binary: 0=Normal, 1=SQLi
             prob = self.models["sqli"].predict_proba(vec)[0][1] # prob of class 1
             return prob
         except Exception:
@@ -163,7 +150,6 @@ class ThreatFusionEngine:
             method_map = {'GET': 0, 'POST': 1, 'PUT': 2, 'DELETE': 3, 'HEAD': 4, 'OPTIONS': 5}
             method_idx = method_map.get(method, 0)
             
-            # Features match training script
             features = [
                 method_idx,
                 len(url),
@@ -174,7 +160,6 @@ class ThreatFusionEngine:
                 path.count('/')
             ]
             
-            # Random Forest predict (0 or 1)
             pred = self.models["behavior"].predict([features])[0]
             return float(pred)
         except Exception:
@@ -200,31 +185,25 @@ class ThreatFusionEngine:
                 path.count('/')
             ]
             
-            # Isolation Forest: 1 = Normal, -1 = Anomaly
             pred = self.models["anomaly"].predict([features])[0]
             return pred
         except Exception:
             return 1
 
     def scan_request(self, method, url, body=""):
-        # 1. URL Analysis
         url_score, url_type = self.analyze_url(url)
         
-        # 2. SQLi Analysis (Check Query String and Body only, NOT path)
         parsed = urlparse(url)
         sqli_score_query = self.analyze_sqli(parsed.query)
         sqli_score_body = self.analyze_sqli(body)
         sqli_score = max(sqli_score_query, sqli_score_body)
         
-        # 3. Behavior Analysis
         parsed = urlparse(url)
         behav_score = self.analyze_behavior(method, url, parsed.query)
         
-        # 4. Anomaly Analysis
         anomaly_res = self.analyze_anomaly(method, url, parsed.query)
         anomaly_score = 1.0 if anomaly_res == -1 else 0.0
         
-        # FUSION LOGIC (Hard vs Soft Layers)
         is_threat = False
         reasons = []
         hard_flags = 0  # URL, SQLi (high confidence, can trigger alone)
@@ -246,22 +225,16 @@ class ThreatFusionEngine:
             soft_flags += 1
             reasons.append("Traffic Anomaly Detected")
         
-        # Decision Logic:
-        # - Any hard flag = immediate threat
-        # - 2+ soft flags = threat (confirmed by multiple soft layers)
-        # - 1 soft flag alone = warning only, NOT blocked
         if hard_flags > 0:
             is_threat = True
         elif soft_flags >= 2:
             is_threat = True
         
-        # Total Risk Score
         total_risk = (url_score + sqli_score + behav_score + anomaly_score) / 4.0
         
         return is_threat, reasons, total_risk
 
 # ============================================================================
-# CONFIGURATION
 # ============================================================================
 ABUSEIPDB_API_KEY = "8a0456564e5ea90f807a1b68be09b677d18359d92cd272d7c2b0767ab0b9392018bb20c62e0a3df3"
 ABUSEIPDB_API_URL = "https://api.abuseipdb.com/api/v2/check"
@@ -278,7 +251,6 @@ IP_CACHE = {}
 IP_CACHE_LOCK = threading.Lock()
 CACHE_TTL_SECONDS = 3600
 
-# Telegram Alert Configuration
 TELEGRAM_BOT_TOKEN = "8012805045:AAGe4PmBOxqxhF-LxCwTV4fBAb476uZHe7Y"
 TELEGRAM_CHAT_ID = "-5116169252"
 TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
@@ -322,7 +294,6 @@ def send_telegram_alert(ip, reasons, risk_score=0.0):
     
     threading.Thread(target=_send, daemon=True).start()
 
-# Global Fusion Engine
 fusion_engine = None
 
 def is_private_ip(ip_string):
@@ -344,12 +315,9 @@ def check_ip_reputation(ip_address):
                 print(f"{Colors.YELLOW}[CACHE] {ip_address} Score: {cached['score']}{Colors.RESET}")
                 return cached["is_bad"], cached["score"], "cache"
     
-    # ... (Keep existing AbuseIPDB logic / simplified for brevity)
-    # Return Mock for now to ensure server runs if API fails or quota limited
     return False, 0, "api-mock" 
 
 # ============================================================================
-# HTTP SERVER
 # ============================================================================
 class CustomHandler(BaseHTTPRequestHandler):
     def handle(self):
@@ -371,7 +339,6 @@ class CustomHandler(BaseHTTPRequestHandler):
         print(f"{Colors.YELLOW}[*] Draining attacker resources...{Colors.RESET}")
         logging.warning(f"TARPIT ENGAGED: IP={client_ip} Reasons={reasons}")
         
-        # Send Telegram Alert
         send_telegram_alert(client_ip, reasons, risk_score)
         
         try:
@@ -384,12 +351,17 @@ class CustomHandler(BaseHTTPRequestHandler):
             count = 0
             while count < TARPIT_HEADER_COUNT:
                 k, v = self.generate_garbage_header()
-                self.wfile.write(f"{k}: {v}\r\n".encode())
+                data = f"{k}: {v}\r\n"
+                
+                chunk_size = hex(len(data))[2:]
+                valid_chunk = f"{chunk_size}\r\n{data}\r\n"
+                
+                self.wfile.write(valid_chunk.encode())
                 self.wfile.flush()
                 count += 1
                 time.sleep(TARPIT_DELAY_SECONDS)
                 if count % 10 == 0:
-                    print(f"\r{Colors.MAGENTA}[TARPIT] Sent {count} garbage headers to {client_ip}{Colors.RESET}", end="")
+                    print(f"\r{Colors.MAGENTA}[TARPIT] Sent {count} valid chunks to {client_ip}{Colors.RESET}", end="")
         except Exception:
             print(f"\n{Colors.GREEN}[✔] Attacker disconnected. Resources drained successfully.{Colors.RESET}")
 
@@ -403,13 +375,11 @@ class CustomHandler(BaseHTTPRequestHandler):
         
         print(f"\n{Colors.BLUE}[REQ] {method} {path} from {client_ip}{Colors.RESET}")
         
-        # 1. Check IP Reputation
         is_bad_ip, score, src = check_ip_reputation(client_ip)
         if is_bad_ip:
             self.execute_tarpit(client_ip, [f"Bad Reputation (Score: {score})"], risk_score=score/100.0)
             return
 
-        # 2. Reconnaissance Path Blacklist
         RECON_PATHS = [
             '.git', '.env', '.htaccess', '.htpasswd', '.svn', '.DS_Store',
             'wp-admin', 'wp-login', 'wp-content', 'wp-includes',
@@ -429,7 +399,6 @@ class CustomHandler(BaseHTTPRequestHandler):
             self.execute_tarpit(client_ip, recon_reasons, risk_score=0.9)
             return
 
-        # 2. AI Fusion Scan
         is_threat, reasons, risk = fusion_engine.scan_request(method, path, body)
         
         if is_threat or risk > 0.7:
@@ -437,15 +406,12 @@ class CustomHandler(BaseHTTPRequestHandler):
             self.execute_tarpit(client_ip, reasons, risk_score=risk)
             return
         elif reasons:
-            # Soft warning: flagged by 1 layer but not enough to block
             print(f"{Colors.YELLOW}[AI-WARN] Low Risk ({risk:.2f}): {reasons} — Allowing{Colors.RESET}")
             logging.info(f"SOFT-WARN: {method} {path} from {client_ip} | {reasons}")
         
-        # 3. Serve Normal Content
         print(f"{Colors.GREEN}[CLEAN] Request allowed. serving content.{Colors.RESET}")
         logging.info(f"ALLOWED: {method} {path} from {client_ip}")
         
-        # Serve Fake Login (Default)
         try:
             with open("default.html", "rb") as f:
                 content = f.read()
@@ -475,7 +441,6 @@ def run_server(port=8080):
     print("╚════════════════════════════════════════════╝")
     print(f"{Colors.RESET}")
     
-    # Initialize Fusion Engine
     fusion_engine = ThreatFusionEngine()
     
     server = ThreadedHTTPServer(('0.0.0.0', port), CustomHandler)

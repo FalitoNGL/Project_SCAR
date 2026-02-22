@@ -4,7 +4,6 @@ import random
 import sys
 import threading
 
-# Configuration
 TARGET_URL = "http://localhost:8000"
 NORMAL_PATHS = [
     "/",
@@ -66,7 +65,6 @@ def simulate_malicious_url_attack():
     log(f"    Sending malicious URL: {path}", "YELLOW")
     try:
         start_time = time.time()
-        # Short timeout because we expect tarpit to delay it indefinitely
         requests.get(url, timeout=5)
         elapsed = time.time() - start_time
         log(f"    [FAILED] Server responded normally in {elapsed:.2f}s. Tarpit NOT activated?", "RED")
@@ -79,7 +77,6 @@ def simulate_sqli_attack():
     """Simulate an attacker trying SQL Injection (Detected by AI Model V2)"""
     log("\n[!] Simulating SQL INJECTION ATTACK (Targeting AI Model V2)...", "YELLOW")
     path = random.choice(SQLI_PAYLOADS)
-    # URL encode problematic characters manually if needed, but requests handles basic encoding
     url = f"{TARGET_URL}{path}"
     
     log(f"    Sending SQLi Payload: {path}", "YELLOW")
@@ -97,8 +94,6 @@ def simulate_behavior_attack():
     """Simulate a request with anomalous behavior (Targeting AI Model V3/V4)"""
     log("\n[!] Simulating ANOMALOUS BEHAVIOR ATTACK (Targeting AI Layer 3 & 4)...", "YELLOW")
     
-    # Construct a URL that looks structurally anomalous (long, many params, special chars)
-    # but isn't necessarily a known SQLi or Phishing signature
     base = "/search"
     params = "&".join([f"param{i}=value{i}" for i in range(20)])
     special = "><;()@!#" * 5
@@ -121,7 +116,6 @@ def main():
     log("║       S.C.A.R. ATTACK SIMULATION TOOL v1.0             ║", "RED")
     log("╚════════════════════════════════════════════════════════╝", "RED")
     
-    # Check if server is up
     try:
         requests.get(TARGET_URL, timeout=2)
         log("[*] Server is ONLINE. Starting simulation...", "GREEN")
@@ -129,23 +123,18 @@ def main():
         log(f"[!] Target server {TARGET_URL} is DOWN. Please start server.py first.", "RED")
         return
 
-    # 1. Normal User
     simulate_normal_user()
     
-    # 2. Malicious URL Attack
     simulate_malicious_url_attack()
     
-    # 3. SQL Injection Attack
     simulate_sqli_attack()
 
-    # 4. Behavioral Anomaly Attack
     simulate_behavior_attack()
     
     log("\n[=] Simulation Complete. Check logs on server side.", "BLUE")
 
 if __name__ == "__main__":
     try:
-        # Allow custom URL via arg
         if len(sys.argv) > 1:
             TARGET_URL = sys.argv[1]
         main()
