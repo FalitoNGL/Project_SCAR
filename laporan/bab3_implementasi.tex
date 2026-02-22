@@ -93,7 +93,7 @@ Logika ini mencegah \textit{false positive} --- request normal yang kebetulan di
 
 \subsection{Lingkungan Pengembangan}
 
-Pengembangan sistem S.C.A.R. pada dasarnya memisahkan arsitektur lingkungan komputasi menjadi dua fase diskrit: Fase Pelatihan Model (\textit{Training}) dan Fase Inferensi (\textit{Production Server}). Pemisahan lingkungan ini esensial untuk mengisolasi beban kerja matematis berat dari ketersediaan peladen utama.
+Pengembangan sistem S.C.A.R. pada dasarnya memisahkan arsitektur lingkungan komputasi menjadi dua fase diskrit: Fase Pelatihan Model (\textit{Training}) dan Fase Inferensi (\textit{Production Server}). Pemisahan lingkungan ini esensial untuk mengisolasi beban kerja matematis berat dari ketersediaan server utama.
 
 \begin{table}[H]
 \centering
@@ -117,7 +117,7 @@ Concurrency & Modul \texttt{threading} \\
 \end{tabular}
 \end{table}
 
-Penggunaan \textbf{Google Colab} (berbasis Jupyter Notebook) pada fase \textit{training} dipilih untuk mengakselerasi proses iterasi \textit{feature engineering} dan pelatihan melintasi ketiga dataset mentah Kaggle yang berskala besar. Setelah model (\textit{Logistic Regression}, \textit{Random Forest}, \textit{Isolation Forest}) mencapai kondisi optimal tingkat konvergensi dan diekspor ke dalam wujud proksi \texttt{.pkl}, peladen lokal hanya perlu memuatnya ke dalam memori RAM statis tunggal untuk operasional inferensi \textit{real-time} tanpa beban kalkulasi latih sama sekali.
+Penggunaan \textbf{Google Colab} (berbasis Jupyter Notebook) pada fase \textit{training} dipilih untuk mengakselerasi proses iterasi \textit{feature engineering} dan pelatihan melintasi ketiga dataset mentah Kaggle yang berskala besar. Setelah model (\textit{Logistic Regression}, \textit{Random Forest}, \textit{Isolation Forest}) mencapai kondisi optimal tingkat konvergensi dan diekspor ke dalam format file \texttt{.pkl}, server lokal hanya perlu memuatnya ke dalam memori RAM statis tunggal untuk operasional inferensi \textit{real-time} tanpa beban kalkulasi latih sama sekali.
 
 \subsection{Struktur Proyek}
 
@@ -139,8 +139,8 @@ Project_SCAR/
 
 Keenam berkas \texttt{.pkl} (\textit{pickle}) di atas merupakan representasi biner statis dari komputasi pelatihan fase \textit{cloud}. Rasio 6 berkas untuk 4 model fusi dijelaskan sebagai berikut:
 \begin{itemize}
-    \item \textbf{Model Klasifikasi Teks (\texttt{url\_model}, \texttt{sqli\_model})} masing-masing membutuhkan pasangan \textbf{\texttt{\_vectorizer.pkl}}. Berkas \textit{vectorizer} bertugas menyimpan memori kamus kosakata asali (\textit{vocabulary state}) dari \textit{Term Frequency - Inverse Document Frequency} (TF-IDF). Tanpa \textit{vectorizer} ini, model matematis regresi logistik tidak akan mampu menerjemahkan \textit{string} mentah baru ke dalam matriks numerik yang dimensinya sejajar dengan format saat pelatihan awal.
-    \item \textbf{Model Tebaran Statistik (\texttt{behavior\_model}, \texttt{anomaly\_model})} hanya berdiri tunggal tanpa pasangan proksi vektor. Hal ini dikarenakan algoritma dasarnya (\textit{Random Forest} dan \textit{Isolation Forest}) langsung mengonsumsi matriks fitur tabuler hasil ekstraksi matematika murni $O(N)$ (contoh: kalkulasi panjang karakter, intensitas parameter) sehingga leksikon prasyarat teks tidak diperlukan.
+    \item \textbf{Model Klasifikasi Teks (\texttt{url\_model}, \texttt{sqli\_model})} masing-masing membutuhkan pasangan \textbf{\texttt{\_vectorizer.pkl}}. Berkas \textit{vectorizer} bertugas menyimpan memori kamus kosakata awal (\textit{vocabulary state}) dari \textit{Term Frequency - Inverse Document Frequency} (TF-IDF). Tanpa \textit{vectorizer} ini, model matematis regresi logistik tidak akan mampu menerjemahkan \textit{string} mentah baru ke dalam matriks numerik yang dimensinya sejajar dengan format saat pelatihan awal.
+    \item \textbf{Model Distribusi Statistik (\texttt{behavior\_model}, \texttt{anomaly\_model})} hanya berdiri tunggal tanpa pasangan proksi vektor. Hal ini dikarenakan algoritma dasarnya (\textit{Random Forest} dan \textit{Isolation Forest}) langsung memproses matriks fitur tabuler hasil ekstraksi matematika murni $O(N)$ (contoh: kalkulasi panjang karakter, intensitas parameter) sehingga leksikon prasyarat teks tidak diperlukan.
 \end{itemize}
 
 \subsection{Tampilan Halaman Honeypot}
@@ -264,7 +264,7 @@ Berdasarkan hasil pengujian menggunakan 5 skenario simulasi, berikut adalah anal
 
     \item \textbf{Deteksi Serangan}: Ketiga jenis serangan (\textit{reconnaissance}, SQL Injection, dan anomali) berhasil terdeteksi. \textit{Risk Score} bervariasi dari 0,52 hingga 0,90, menunjukkan bahwa sistem mampu membedakan tingkat keparahan ancaman.
 
-    \item \textbf{Efektivitas Tarpit}: Mekanisme \textit{chunked transfer encoding} berhasil menahan koneksi penyerang. Secara teknis, karena server menahan pengiriman \textit{terminating chunk} (chunk berukuran 0), koneksi \textit{Transmission Control Protocol} (TCP) akan dijaga agar tetap aktif tanpa memasuki fase terminasi. Kegagalan penyelesaian siklus HTTP ini pada akhirnya memaksa perpustakaan aplikasi klien pemindai untuk memutus koneksi secara sepihak (\textit{client-side timeout}). \textit{Error} \texttt{Read timed out} muncul akibat aplikasi klien telah melampaui tenggat toleransi maksimumnya untuk menunggu sisa balasan utuh.
+    \item \textbf{Efektivitas Tarpit}: Mekanisme \textit{chunked transfer encoding} berhasil menahan koneksi penyerang. Secara teknis, karena server menahan pengiriman \textit{terminating chunk} (chunk berukuran 0), koneksi \textit{Transmission Control Protocol} (TCP) akan dijaga agar tetap aktif tanpa memasuki fase terminasi. Kegagalan penyelesaian siklus HTTP ini pada akhirnya memaksa \textit{library} HTTP \textit{client} pemindai untuk memutus koneksi secara sepihak (\textit{client-side timeout}). \textit{Error} \texttt{Read timed out} muncul akibat aplikasi klien telah melampaui tenggat toleransi maksimumnya untuk menunggu sisa balasan utuh.
 
     \item \textbf{Stabilitas \textit{Multi-Threading}}: Server tetap responsif melayani pengguna normal meskipun ada koneksi yang sedang di-\textit{tarpit}. Hal ini dimungkinkan oleh \texttt{ThreadingHTTPServer} yang menangani setiap koneksi pada \textit{thread} terpisah.
 
@@ -287,9 +287,9 @@ Pendekatan \textit{Thread-per-Connection} secara klasik dikenal memiliki keterba
 Meskipun sistem S.C.A.R. berfungsi sesuai rancangan, terdapat beberapa batasan teknis yang teridentifikasi:
 
 \begin{enumerate}[label=\arabic*.]
-    \item \textbf{Kelemahan terhadap Ribuan Koneksi Singkat}: Pola \textit{Thread-per-Connection} mengonsumsi CPU dan RAM secara linier. Jika penyerang membuka ribuan koneksi singkat secara masif tanpa menunggu balasan (skenario \textit{flooding}), peladen akan kehabisan sumber daya akibat \textit{overhead} penciptaan utas sebelum \textit{tarpit} sempat menahan penyerang (merujuk pada \textit{C10K problem} dari Kegel, 1999). Dibutuhkan pertahanan \textit{rate limiting} di lapisan hulu (contoh: WAF/Firewall) untuk skenario \textit{Denial of Service} murni.
-    \item \textbf{Inefektivitas terhadap \textit{Asynchronous Scanner}}: Mekanisme \textit{tarpit} memonopoli soket dengan asumsi pemindai bersifat sinkron (\textit{blocking}). Terhadap pemindai internet modern yang bersifat \textit{stateless} dan asinkron seperti ZMap atau Masscan (Durumeric et al., 2013), jebakan ini menjadi kurang relevan karena subsistem mereka tidak pernah repot menunggu penyelesaian HTTP \textit{response}.
-    \item \textbf{Intervensi \textit{Reverse Proxy}} (\textit{Middleboxes Buffering}): Menurut RFC~9110 (Fielding et al., 2022), perangkat perantara jaringan (seperti NGINX atau peladen \textit{cache}) seringkali melakukan \textit{buffering} penuh terhadap \textit{chunked response}. Bila honeypot ini diatur di belakang proxy semacam itu, \textit{garbage stream} abadi justru akan menghabiskan memori peladen proxy internal alih-alih merugikan infrastruktur penyerang.
+    \item \textbf{Kelemahan terhadap Ribuan Koneksi Singkat}: Pola \textit{Thread-per-Connection} membutuhkan CPU dan RAM secara linier. Jika penyerang membuka ribuan koneksi singkat secara masif tanpa menunggu balasan (skenario \textit{flooding}), server akan kehabisan sumber daya akibat \textit{overhead} penciptaan \textit{thread} sebelum \textit{tarpit} sempat menahan penyerang (merujuk pada \textit{C10K problem} dari Kegel, 1999). Dibutuhkan pertahanan \textit{rate limiting} di lapisan infrastruktur (contoh: WAF/Firewall) untuk skenario \textit{Denial of Service} murni.
+    \item \textbf{Pemindai Asinkron (\textit{ZMap/Masscan})}: Tarpit mengasumsikan pemindai bersifat sinkron (\textit{blocking}). Terhadap pemindai internet luas dengan arsitektur \textit{stateless/asynchronous} (Durumeric et al., 2013), mekanisme ini tidak efektif karena \textit{library} pemindai tidak menahan \textit{thread} untuk menunggu respons.
+    \item \textbf{Intervensi \textit{Reverse Proxy}} (\textit{Middleboxes Buffering}): Menurut RFC~9110 (Fielding et al., 2022), perangkat perantara jaringan (seperti NGINX atau server \textit{cache}) seringkali melakukan \textit{buffering} penuh terhadap \textit{chunked response}. Bila honeypot ini diatur di belakang proxy semacam itu, \textit{garbage stream} abadi justru akan menghabiskan memori server proxy internal kita sendiri alih-alih merugikan infrastruktur penyerang.
     \item \textbf{Ketergantungan \textit{Client-Side Timeout}}: Di luar efek proxy, efektivitas murni \textit{tarpit} juga dibatasi secara deterministik oleh regulasi \textit{timeout} sisi aplikasi klien inisiator.
     \item \textbf{Generalisasi Model ML terpusat pada \textit{Localhost}}: Tingkat \textit{false negative} secara sejati pada lalu lintas jaringan publik belum terkuantifikasi, mengingat simulasi purwarupa ini hanya diujikan pada kondisi tertutup menggunakan alamat \texttt{127.0.0.1}.
 \end{enumerate}
