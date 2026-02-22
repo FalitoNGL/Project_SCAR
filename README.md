@@ -42,8 +42,9 @@ S.C.A.R. memiliki **4 Lapisan AI** yang bekerja bersama:
 | 4 | Zero-Day Anomaly | Deteksi serangan tak dikenal | Isolation Forest |
 
 **Fusion Logic:**
-- **Hard Layers** (URL, SQLi): Bisa memblokir sendiri jika confidence tinggi.
-- **Soft Layers** (Behavior, Anomaly): Butuh 2+ layer setuju untuk memblokir — mengurangi false positive.
+- **Hard Layers** (URL, SQLi): Bisa memicu Tarpit secara absolut jika *confidence* tinggi, memotong agregasi rata-rata.
+- **Soft Layers** (Behavior, Anomaly): Bertindak sebagai sistem konfirmasi silang. Membutuhkan 2+ layer yang bersesuaian untuk memblokir, guna menekan *false positive*.
+- **Ambang Batas (Risk Threshold):** Ditetapkan $\geq 0.7$ berdasarkan prinsip optimasi kurva ROC (Fawcett, 2006) untuk memprioritaskan presisi dan melindungi pengguna sah.
 
 ### 🕵️ Reconnaissance Blacklist
 Menangkap probing terhadap file/path sensitif yang sering digunakan penyerang:
@@ -57,12 +58,12 @@ Menangkap probing terhadap file/path sensitif yang sering digunakan penyerang:
 - **Smart Caching**: Hasil disimpan di memori (TTL: 1 jam).
 - **Private IP Bypass**: IP lokal otomatis dilewati.
 
-### ⚔️ Active Defense: Tarpit
-Ketika serangan terdeteksi, S.C.A.R. **tidak memutus koneksi** — justru sebaliknya:
-1. Server merespons `HTTP 200 OK` (penyerang pikir berhasil).
-2. Mengirim **garbage headers tanpa henti** (`X-Trap-XXXXXX: [random hex]`).
-3. Penyerang **terjebak menunggu** response yang tidak pernah selesai.
-4. Tool penyerang (SQLMap, DirBuster, dll) **hang** sampai timeout.
+### ⚔️ Active Defense: Tarpit (RFC 9112)
+Ketika serangan terdeteksi, S.C.A.R. **tidak memutus koneksi** — justru mengeksploitasi semantik HTTP/1.1 *Chunked Transfer Encoding*:
+1. Server merespons `HTTP/1.1 200 OK` (penyerang mengira eksploitasi berhasil).
+2. Mengirim header `Transfer-Encoding: chunked`.
+3. Mengirim **garbage chunks tanpa henti** (`X-Trap-XXXXXX: [random hex]`) dengan jeda 5 detik.
+4. Server **tidak pernah** mengirimkan *terminating chunk* (ukuran 0), sehingga *socket* TCP penyerang dipaksa tetap terbuka hingga *timeout* internal mereka tercapai. Tool otomatis (SQLMap, DirBuster) akan *hang*.
 
 ### 🔔 Telegram Alert
 Notifikasi instan ke grup/channel Telegram setiap kali serangan terdeteksi:
@@ -107,6 +108,16 @@ Notifikasi instan ke grup/channel Telegram setiap kali serangan terdeteksi:
             └─────────────┘    │  + Telegram Alert │
                                └──────────────────┘
 ```
+
+---
+
+## ⚠️ Limitations & Trade-offs (Academic Scope)
+
+S.C.A.R. dirancang sebagai *Proof of Concept* untuk keperluan akademis dengan beberapa batasan arsitektural:
+
+1. **Kendala Skalabilitas (*C10K Problem*)**: Diimplementasikan dengan model kelas `ThreadingMixIn` (Thread-per-Connection). Jika diserang oleh ribuan koneksi flooding secara paralel, server akan kehabisan *resource* untuk penciptaan utas (Kegel, 1999).
+2. **Pemindai Asinkron (*ZMap/Masscan*)**: Tarpit mengasumsikan pemindai bersifat sinkron (*blocking*). Terhadap pemindai internet luas dengan arsitektur *stateless/asynchronous* (Durumeric et al., 2013), mekanisme ini tidak efektif karena subsistem pemindai tidak menunggu respons.
+3. **Intervensi *Reverse Proxy***: Jika sistem ini diletakkan di belakang proksi jaringan (seperti NGINX) yang melakukan agregasi *buffer* sesuai RFC 9110, maka tumpukan eksekusi *chunked tarpit* justru akan menghabiskan memori peladen proksi internal jaringan kita sendiri.
 
 ---
 
