@@ -1,0 +1,374 @@
+% ============================================================
+% BAB 3: PERANCANGAN SISTEM
+% ============================================================
+\newpage
+\section{Perancangan Sistem}
+
+\subsection{Arsitektur Server}
+
+S.C.A.R. dibangun di atas arsitektur \textit{multi-threaded HTTP server} menggunakan pustaka standar \texttt{ThreadingHTTPServer} dari Python. Arsitektur \textit{Thread-per-Connection} ini memungkinkan server menangani sekumpulan soket masukan secara asinkron --- sebuah urgensi fungsional mengingat perputaran blok \textit{tarpit} memblokade antrean sekian detik per eksekusi di saat permintaan organik harus dijawab.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=0.8cm,
+    layer/.style={draw, rounded corners, minimum width=12cm, minimum height=1cm, align=center, fill=blue!10, font=\small},
+    decision/.style={draw, diamond, aspect=2.5, fill=yellow!20, font=\small, align=center},
+    action/.style={draw, rounded corners, minimum width=4cm, minimum height=0.8cm, align=center, fill=red!15, font=\small},
+    clean/.style={draw, rounded corners, minimum width=4cm, minimum height=0.8cm, align=center, fill=green!15, font=\small},
+    arrow/.style={->, thick}
+]
+    \node[layer] (req) {Incoming TCP Connection (Socket)};
+    \node[layer, below=of req] (parse) {HTTP Request Parsing (Method, Path, Headers, Body)};
+    \node[layer, below=of parse] (l0) {Layer 0: IP Reputation (AbuseIPDB REST API)};
+    \node[layer, below=of l0] (l1) {Layer 1: Reconnaissance Blacklist (Pattern Matching)};
+    \node[layer, below=of l1] (l2) {Layer 2--5: AI Threat Fusion Engine};
+    \node[decision, below=1.5cm of l2] (dec) {Threat?};
+    \node[action, below right=1cm and 0.5cm of dec] (tarpit) {Tarpit via Chunked Encoding};
+    \node[clean, below left=1cm and 0.5cm of dec] (serve) {Serve Honeypot HTML};
+
+    \draw[arrow] (req) -- (l0);
+    \draw[arrow] (req) -- (parse);
+    \draw[arrow] (parse) -- (l0);
+    \draw[arrow] (l0) -- (l1);
+    \draw[arrow] (l1) -- (l2);
+    \draw[arrow] (l2) -- (dec);
+    \draw[arrow] (dec) -- node[right, font=\small] {Ya} (tarpit);
+    \draw[arrow] (dec) -- node[left, font=\small] {Tidak} (serve);
+\end{tikzpicture}
+\caption{Alur Pemrosesan Request pada Server S.C.A.R.}
+\label{fig:arsitektur}
+\end{figure}
+
+\subsection{Alur Komunikasi Jaringan}
+
+Ketika request masuk, server melakukan TCP handshake pada port 8000, mem-\textit{parse} HTTP request (method, path, headers, body), lalu memeriksa reputasi IP melalui AbuseIPDB API (server bertindak sebagai HTTP client). Request kemudian dianalisis oleh Reconnaissance Blacklist dan 4 model AI. Jika teridentifikasi sebagai ancaman, server mengirim response tarpit (\texttt{HTTP 200 OK} + chunked garbage stream). Jika aman, server mengirim halaman HTML honeypot. Setiap deteksi ancaman juga memicu pengiriman HTTP POST ke Telegram Bot API di background thread.
+
+\subsection{Mekanisme Tarpit}
+
+Tarpit beroperasi dengan memanipulasi HTTP response stream pada level socket TCP menggunakan status \texttt{HTTP/1.1 200 OK} dan \textit{chunked transfer encoding}. Sesuai spesifikasi RFC~9112 (Section~7.1), server secara terus-menerus mengirimkan \textit{body chunk} yang diawali dengan ukuran hexadecimal dari \textit{chunk} tersebut, diikuti oleh \textit{garbage data} dan jeda (\textit{sleep}) 5 detik. Server sengaja menahan koneksi dan tidak pernah mengirimkan \textit{terminating chunk} (chunk berukuran 0). Total durasi penahanan koneksi dapat direpresentasikan melalui rumusan teoretis:
+\begin{equation}
+    T_{total} = N_{chunk} \times t_{delay}
+\end{equation}
+Meskipun secara matematis durasi ini dapat berlarut sangat lama, durasi penahanan di lingkungan nyata akan sangat dibatasi oleh mekanisme \textit{client-side timeout}. \textit{Tool} pemindai otomatis umumnya akan terus menunggu di dalam koneksi TCP yang menggantung tersebut murni karena kepatuhannya terhadap protokol, hingga batas toleransi internalnya tercapai.
+
+\subsection{Integrasi REST API}
+
+S.C.A.R. bertindak sebagai HTTP client saat berkomunikasi dengan dua API eksternal: (1) \textbf{AbuseIPDB} --- server mengirim \texttt{HTTP GET} ke \texttt{/api/v2/check} dengan parameter IP address, dan menerima JSON berisi \texttt{abuseConfidenceScore} (skor reputasi 0--100); (2) \textbf{Telegram Bot API} --- server mengirim \texttt{HTTP POST} ke \texttt{/bot[TOKEN]/sendMessage} dengan payload JSON berisi pesan alert. Kedua integrasi ini mendemonstrasikan bagaimana server jaringan dapat bertindak sebagai \textit{client} dan \textit{server} secara bersamaan.
+
+\subsection{Threat Fusion Logic}
+
+Hasil analisis dari 4 model AI digabungkan menggunakan logika fusi \textit{Hard/Soft Flag}:
+
+\begin{table}[H]
+\centering
+\small
+\caption{Sistem \textit{Hard Flag} dan \textit{Soft Flag}}
+\begin{tabular}{llcc}
+\toprule
+\textbf{Layer} & \textbf{Model AI} & \textbf{Tipe Flag} & \textbf{Bisa Trigger Tarpit Sendiri} \\
+\midrule
+Layer 2 & URL Threat & Hard & Ya \\
+Layer 3 & SQL Injection & Hard & Ya \\
+Layer 4 & HTTP Behavior & Soft & Tidak (butuh konfirmasi) \\
+Layer 5 & Anomaly Detection & Soft & Tidak (butuh konfirmasi) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Aturan:}
+\begin{itemize}
+    \item $\geq 1$ Hard Flag $\rightarrow$ \textbf{Tarpit} langsung.
+    \item $\geq 2$ Soft Flags $\rightarrow$ \textbf{Tarpit} (konfirmasi silang).
+    \item 1 Soft Flag saja $\rightarrow$ \textbf{Warning} (dicatat, request dilayani).
+\end{itemize}
+
+Logika ini mencegah \textit{false positive} --- request normal yang kebetulan ditandai oleh satu model saja tidak akan memicu tarpit.
+
+% ============================================================
+% BAB 4: IMPLEMENTASI
+% ============================================================
+\newpage
+\section{Implementasi}
+
+\subsection{Lingkungan Pengembangan}
+
+Pengembangan sistem S.C.A.R. pada dasarnya memisahkan arsitektur lingkungan komputasi menjadi dua fase diskrit: Fase Pelatihan Model (\textit{Training}) dan Fase Inferensi (\textit{Production Server}). Pemisahan lingkungan ini esensial untuk mengisolasi beban kerja matematis berat dari ketersediaan peladen utama.
+
+\begin{table}[H]
+\centering
+\caption{Spesifikasi Lingkungan Multi-Fase}
+\begin{tabular}{ll}
+\toprule
+\textbf{Komponen} & \textbf{Detail} \\
+\midrule
+\textbf{Lingkungan Pelatihan (Training)} & \\
+Platform & Google Colaboratory (Jupyter Notebook) \\
+Inti Pemrosesan (\textit{Compute}) & Cloud CPU / RAM \\
+Pustaka Utama Model & \texttt{scikit-learn}, \texttt{numpy}, \texttt{pandas} \\
+Artefak Ekspor & Berkas (\texttt{.pkl}) via modul \texttt{pickle} \\
+\midrule
+\textbf{Lingkungan Inferensi (Server)} & \\
+Platform & Localhost (Windows/Linux) \\
+Bahasa & Python 3.8+ \\
+Server Framework & \texttt{http.server} + \texttt{socketserver} \\
+Concurrency & Modul \texttt{threading} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Penggunaan \textbf{Google Colab} (berbasis Jupyter Notebook) pada fase \textit{training} dipilih untuk mengakselerasi proses iterasi \textit{feature engineering} dan pelatihan melintasi ketiga dataset mentah Kaggle yang berskala besar. Setelah model (\textit{Logistic Regression}, \textit{Random Forest}, \textit{Isolation Forest}) mencapai kondisi optimal tingkat konvergensi dan diekspor ke dalam wujud proksi \texttt{.pkl}, peladen lokal hanya perlu memuatnya ke dalam memori RAM statis tunggal untuk operasional inferensi \textit{real-time} tanpa beban kalkulasi latih sama sekali.
+
+\subsection{Struktur Proyek}
+
+\begin{lstlisting}[language={}, caption={Struktur Direktori Proyek}]
+Project_SCAR/
+|-- server.py                # HTTP Server + Fusion Engine + Tarpit
+|-- attacker_simulation.py   # HTTP Client Simulasi Serangan
+|-- default.html             # Honeypot HTML Page
+|-- requirements.txt         # Dependencies
+|-- models/                  # Pre-trained AI Models (.pkl)
+|   |-- url_model.pkl
+|   |-- url_vectorizer.pkl
+|   |-- sqli_model.pkl
+|   |-- sqli_vectorizer.pkl
+|   |-- behavior_model.pkl
+|   +-- anomaly_model.pkl
++-- README.md
+\end{lstlisting}
+
+\subsection{Tampilan Halaman Honeypot}
+
+Halaman HTML palsu disajikan kepada pengunjung normal melalui HTTP response standar. Tampilan ini sengaja dibuat menyerupai website asli untuk mengecoh penyerang (lihat Gambar \ref{fig:honeypot}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{ss_honeypot.png}
+\caption{Tampilan halaman honeypot di browser (\texttt{http://localhost:8000}).}
+\label{fig:honeypot}
+\end{figure}
+
+\subsection{Implementasi HTTP Server dan Tarpit}
+
+Server dibangun menggunakan \texttt{ThreadingHTTPServer} yang mewarisi \texttt{socketserver.ThreadingMixIn}. Setiap request yang masuk di-\textit{parse} di dalam \texttt{handle\_request()}, kemudian dianalisis untuk menentukan apakah perlu di-tarpit atau dilayani secara normal.
+
+Berikut adalah inti logika tarpit (bagian terpenting dari keseluruhan kode):
+
+\begin{lstlisting}[caption={Core Logic: Implementasi Tarpit via Socket Write}]
+def execute_tarpit(self, client_ip, reasons, risk_score=0.0):
+    # Kirim alert ke Telegram di background thread
+    send_telegram_alert(client_ip, reasons, risk_score)
+
+    # Tulis HTTP header langsung ke socket
+    self.wfile.write(b"HTTP/1.1 200 OK\r\n")
+    self.wfile.write(b"Transfer-Encoding: chunked\r\n")
+    self.wfile.write(b"\r\n")
+
+    # Kirim garbage data secara perlahan sesuai standar RFC 9112
+    for i in range(TARPIT_HEADER_COUNT):
+        random_hex = hashlib.sha256(os.urandom(32)).hexdigest()
+        data = f"X-Trap-{random.randint(0,999999)}: {random_hex}\r\n"
+        chunk_size = hex(len(data))[2:]
+        valid_chunk = f"{chunk_size}\r\n{data}\r\n"
+        self.wfile.write(valid_chunk.encode())
+        self.wfile.flush()             # Force kirim ke socket
+        time.sleep(TARPIT_DELAY_SECONDS)  # Jeda 5 detik
+\end{lstlisting}
+
+Penggunaan \texttt{self.wfile.write()} dan \texttt{self.wfile.flush()} menulis byte langsung ke koneksi TCP klien. Pengiriman alert Telegram dilakukan secara \textit{non-blocking} di background thread (\texttt{threading.Thread(target=\_send, daemon=True).start()}) agar tidak mengganggu proses tarpit.
+
+Pengecekan reputasi IP melalui AbuseIPDB API menggunakan mekanisme \textit{caching} dengan \texttt{threading.Lock()} untuk menghindari \textit{race condition} ketika beberapa thread mengakses cache secara bersamaan.
+
+% ============================================================
+% BAB 5: PENGUJIAN DAN HASIL
+% ============================================================
+\newpage
+\section{Pengujian dan Hasil}
+
+\subsection{Skenario dan Hasil Pengujian}
+
+Pengujian dilakukan menggunakan \texttt{attacker\_simulation.py} yang mengirim 5 jenis request berbeda ke server S.C.A.R.:
+
+\begin{table}[H]
+\centering
+\small
+\caption{Skenario dan Hasil Pengujian}
+\begin{tabularx}{\textwidth}{clXccl}
+\toprule
+\textbf{No} & \textbf{Jenis} & \textbf{HTTP Request} & \textbf{Risk} & \textbf{Hasil} & \textbf{Aksi Sistem} \\
+\midrule
+1 & Normal & \texttt{GET /} & 0.44 & \textcolor{green}{\textbf{Lolos}} & HTTP 200 + HTML \\
+2 & Normal & \texttt{GET /login} & 0.25 & \textcolor{green}{\textbf{Lolos}} & HTTP 200 + HTML \\
+3 & Recon & \texttt{GET /wp-login.php?...} & >0.80 & \textcolor{red}{\textbf{Tarpit}} & Garbage stream \\
+4 & SQLi & \texttt{GET /login?user=admin'\;--} & 0.56 & \textcolor{red}{\textbf{Tarpit}} & Garbage stream \\
+5 & Anomali & \texttt{GET /search?q=><;()@!...} & 0.52 & \textcolor{red}{\textbf{Tarpit}} & Garbage stream \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Bukti Pengujian}
+
+Berikut adalah bukti visual dari pengujian yang telah dilakukan:
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{ss_server.png}
+\caption{Terminal server menampilkan deteksi ancaman dan aktivasi tarpit.}
+\label{fig:server}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{ss_attacker.png}
+\caption{Terminal attacker menunjukkan request normal berhasil, sedangkan request serangan terjebak (\texttt{Read timed out}).}
+\label{fig:attacker}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{ss_telegram.png}
+\caption{Notifikasi Telegram yang dikirim melalui REST API.}
+\label{fig:telegram}
+\end{figure}
+
+Pada sisi penyerang (Gambar \ref{fig:attacker}), terlihat bahwa request serangan menghasilkan error \texttt{Read timed out} --- mengkonfirmasi bahwa data tarpit berhasil dikirim melalui socket dan koneksi penyerang terjebak. Latensi request normal stabil di $\sim$2 detik, sementara koneksi tarpit bertahan 10--30 detik per sesi.
+
+\subsection{Analisis Efektivitas}
+
+Berdasarkan hasil pengujian menggunakan 5 skenario simulasi, berikut adalah analisis efektivitas sistem S.C.A.R.:
+
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{Klasifikasi Trafik}: Seluruh \textit{request} normal (skenario 1 dan 2) berhasil dilayani dengan respons \texttt{HTTP 200 OK} beserta halaman HTML. Seluruh \textit{request} berbahaya (skenario 3--5) berhasil terdeteksi dan dialihkan ke mekanisme tarpit. Sistem \textit{Hard/Soft Flag} mampu membedakan trafik normal dari trafik berbahaya pada pengujian ini.
+
+    \begin{table}[H]
+    \centering
+    \caption{Hasil Klasifikasi pada Pengujian Simulasi}
+    \begin{tabular}{lc}
+    \toprule
+    \textbf{Metrik} & \textbf{Nilai} \\
+    \midrule
+    Precision & 100\% \\
+    Recall & 100\% \\
+    Accuracy & 100\% \\
+    \bottomrule
+    \end{tabular}
+    \end{table}
+
+    \textit{Catatan: Nilai metrik 100\% di atas murni bersifat validasi fungsional (\textit{functional validation}) terhadap 5 skenario terbatas yang diuji, bukan evaluasi statistik formal. Metrik dihitung berdasarkan \textit{confusion matrix} sederhana dengan total lima sampel (2 benign, 3 malicious), sehingga hasil ini bersifat validasi fungsional dan tidak dimaksudkan sebagai evaluasi statistik inferensial. Karena pengujian dilakukan secara \textit{closed-set} dengan dataset logikal yang kecil, kemungkinan terjadinya \textit{false positive} maupun \textit{false negative} sangat terbuka lebar jika dihadapkan pada variasi serangan riil di jaringan publik.}
+
+    \item \textbf{Deteksi Serangan}: Ketiga jenis serangan (\textit{reconnaissance}, SQL Injection, dan anomali) berhasil terdeteksi. \textit{Risk Score} bervariasi dari 0,52 hingga 0,90, menunjukkan bahwa sistem mampu membedakan tingkat keparahan ancaman.
+
+    \item \textbf{Efektivitas Tarpit}: Mekanisme \textit{chunked transfer encoding} berhasil menahan koneksi penyerang. Secara teknis, karena server menahan pengiriman \textit{terminating chunk} (chunk berukuran 0), koneksi \textit{Transmission Control Protocol} (TCP) akan dijaga agar tetap aktif tanpa memasuki fase terminasi. Kegagalan penyelesaian siklus HTTP ini pada akhirnya memaksa perpustakaan aplikasi klien pemindai untuk memutus koneksi secara sepihak (\textit{client-side timeout}). \textit{Error} \texttt{Read timed out} muncul akibat aplikasi klien telah melampaui tenggat toleransi maksimumnya untuk menunggu sisa balasan utuh.
+
+    \item \textbf{Stabilitas \textit{Multi-Threading}}: Server tetap responsif melayani pengguna normal meskipun ada koneksi yang sedang di-\textit{tarpit}. Hal ini dimungkinkan oleh \texttt{ThreadingHTTPServer} yang menangani setiap koneksi pada \textit{thread} terpisah.
+
+    \item \textbf{Integrasi API}: Komunikasi dengan AbuseIPDB dan Telegram Bot API berjalan lancar. Pengiriman alert Telegram dilakukan di \textit{background thread} sehingga tidak mengganggu proses tarpit.
+\end{enumerate}
+
+\subsection{Analisis Trade-off Arsitektur \textit{Thread-per-Connection}}
+
+S.C.A.R. menggunakan kelas \texttt{ThreadingHTTPServer} (gabungan dari \texttt{HTTPServer} dan \texttt{ThreadingMixIn}) yang membuat satu \textit{thread} sistem operasi untuk setiap koneksi HTTP masuk (\textit{Thread-per-Connection}). Kelebihan utama pendekatan ini adalah kesederhanaan implementasi --- alur kode bersifat linier dan mudah dipahami, cocok untuk proyek mata kuliah. Di sisi lain, pendekatan ini bersifat boros sumber daya (\textit{resource-heavy}): jika server menerima ribuan koneksi secara bersamaan, konsumsi RAM akan meningkat secara linier. Selain itu, \textit{Global Interpreter Lock} (GIL) pada Python membatasi paralelisme sejati antar-\textit{core}.
+
+Pendekatan \textit{Thread-per-Connection} secara klasik dikenal memiliki keterbatasan skalabilitas yang sering dikaitkan dengan \textit{C10K problem} (Kegel, 1999), yaitu tantangan menangani ribuan koneksi simultan secara efisien. Dibandingkan dengan arsitektur \textit{event-driven} atau \textit{asynchronous I/O}, model berbasis \textit{thread} cenderung menghasilkan \textit{overhead} memori dan \textit{context switching} yang lebih tinggi. Untuk pengembangan selanjutnya, arsitektur \textit{async/await} direkomendasikan sebagai alternatif yang lebih efisien.
+
+% ============================================================
+% BAB 5.6: LIMITASI SISTEM
+% ============================================================
+
+\subsection{Limitasi Sistem}
+\label{subsec:limitasi}
+
+Meskipun sistem S.C.A.R. berfungsi sesuai rancangan, terdapat beberapa batasan teknis yang teridentifikasi:
+
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{Kelemahan terhadap Ribuan Koneksi Singkat}: Pola \textit{Thread-per-Connection} mengonsumsi CPU dan RAM secara linier. Jika penyerang membuka ribuan koneksi singkat secara masif tanpa menunggu balasan (skenario \textit{flooding}), peladen akan kehabisan sumber daya akibat \textit{overhead} penciptaan utas sebelum \textit{tarpit} sempat menahan penyerang (merujuk pada \textit{C10K problem} dari Kegel, 1999). Dibutuhkan pertahanan \textit{rate limiting} di lapisan hulu (contoh: WAF/Firewall) untuk skenario \textit{Denial of Service} murni.
+    \item \textbf{Inefektivitas terhadap \textit{Asynchronous Scanner}}: Mekanisme \textit{tarpit} memonopoli soket dengan asumsi pemindai bersifat sinkron (\textit{blocking}). Terhadap pemindai internet modern yang bersifat \textit{stateless} dan asinkron seperti ZMap atau Masscan (Durumeric et al., 2013), jebakan ini menjadi kurang relevan karena subsistem mereka tidak pernah repot menunggu penyelesaian HTTP \textit{response}.
+    \item \textbf{Intervensi \textit{Reverse Proxy}} (\textit{Middleboxes Buffering}): Menurut RFC~9110 (Fielding et al., 2022), perangkat perantara jaringan (seperti NGINX atau peladen \textit{cache}) seringkali melakukan \textit{buffering} penuh terhadap \textit{chunked response}. Bila honeypot ini diatur di belakang proxy semacam itu, \textit{garbage stream} abadi justru akan menghabiskan memori peladen proxy internal alih-alih merugikan infrastruktur penyerang.
+    \item \textbf{Ketergantungan \textit{Client-Side Timeout}}: Di luar efek proxy, efektivitas murni \textit{tarpit} juga dibatasi secara deterministik oleh regulasi \textit{timeout} sisi aplikasi klien inisiator.
+    \item \textbf{Generalisasi Model ML terpusat pada \textit{Localhost}}: Tingkat \textit{false negative} secara sejati pada lalu lintas jaringan publik belum terkuantifikasi, mengingat simulasi purwarupa ini hanya diujikan pada kondisi tertutup menggunakan alamat \texttt{127.0.0.1}.
+\end{enumerate}
+% ============================================================
+% BAB 6: KESIMPULAN DAN SARAN
+% ============================================================
+\newpage
+\section{Kesimpulan dan Saran}
+
+\subsection{Kesimpulan}
+
+Berdasarkan hasil perancangan, implementasi, dan pengujian, dapat ditarik kesimpulan sebagai berikut:
+
+\begin{enumerate}[label=\arabic*.]
+    \item Proyek S.C.A.R. berhasil mengimplementasikan konsep-konsep inti \textbf{pemrograman jaringan} secara terintegrasi, meliputi: HTTP server (\texttt{http.server}), manipulasi \textit{HTTP header} melalui \textit{chunked transfer encoding}, siklus \textit{request-response}, integrasi REST API eksternal, dan arsitektur \textit{multi-threading}.
+
+    \item Mekanisme \textbf{\textit{tarpit}} berhasil memanfaatkan \textit{chunked transfer encoding} untuk menahan koneksi penyerang. Durasi penahanan pada pengujian simulasi berkisar 10--30 detik, bergantung pada konfigurasi \textit{timeout} di sisi klien.
+
+    \item Server berperan ganda sebagai \textbf{\textit{server}} (menerima koneksi dari penyerang) dan \textbf{\textit{client}} (mengirim data ke AbuseIPDB dan Telegram Bot API), mendemonstrasikan komunikasi jaringan dua arah.
+
+    \item Penggunaan \texttt{ThreadingHTTPServer} dengan arsitektur \textit{Thread-per-Connection} memungkinkan server tetap melayani pengguna normal meskipun ada koneksi yang sedang di-\textit{tarpit}.
+
+    \item Integrasi \textbf{\textit{Machine Learning}} dengan arsitektur fusi \textit{Hard Flag} / \textit{Soft Flag} berhasil mengklasifikasikan trafik secara tepat pada pengujian simulasi \textit{closed-set}. Logika fusi ini efektif mencegah \textit{false positive} melalui mekanisme konfirmasi silang.
+\end{enumerate}
+
+Secara keseluruhan, S.C.A.R. menunjukkan bahwa konsep \textit{active defense} menggunakan manipulasi protokol HTTP dapat diimplementasikan sebagai proyek pemrograman jaringan. Keterbatasan sistem telah diidentifikasi pada Sub-bab \ref{subsec:limitasi}.
+
+\subsection{Saran Pengembangan}
+
+Berikut adalah saran untuk pengembangan sistem ke depannya:
+
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{Pembatasan Koneksi}: Menambahkan fitur pembatasan jumlah koneksi per IP agar server tidak kewalahan jika diserang secara massal.
+    \item \textbf{Pengujian Lebih Luas}: Melakukan pengujian dengan variasi serangan yang lebih banyak dan di lingkungan jaringan nyata (bukan hanya localhost).
+    \item \textbf{HTTPS}: Menambahkan dukungan SSL/TLS agar halaman honeypot terlihat lebih meyakinkan.
+    \item \textbf{Dashboard Monitoring}: Membuat halaman web untuk melihat aktivitas serangan secara \textit{real-time}.
+\end{enumerate}
+
+% ============================================================
+% DAFTAR PUSTAKA
+% ============================================================
+\newpage
+\section*{Daftar Pustaka}
+\addcontentsline{toc}{section}{Daftar Pustaka}
+
+\begin{itemize}[label={}, leftmargin=1.5em, itemindent=-1.5em]
+
+\item AbuseIPDB. (2024). \textit{API documentation}. \url{https://www.abuseipdb.com/api.html}
+
+\item Breiman, L. (2001). Random forests. \textit{Machine Learning, 45}(1), 5--32.
+
+\item Chandola, V., Banerjee, A., \& Kumar, V. (2009). Anomaly detection: A survey. \textit{ACM Computing Surveys, 41}(3), 1--58.
+
+\item Durumeric, Z., Wustrow, E., \& Halderman, J. A. (2013). ZMap: Fast internet-wide scanning and its security applications. \textit{22nd USENIX Security Symposium}, 605--620.
+
+\item Fawcett, T. (2006). An introduction to ROC analysis. \textit{Pattern Recognition Letters, 27}(8), 861--874.
+
+\item Fielding, R., \& Reschke, J. (2022). \textit{HTTP/1.1} (RFC 9112). IETF. \url{https://www.rfc-editor.org/rfc/rfc9112}
+
+\item Fielding, R., Nottingham, M., \& Reschke, J. (2022). \textit{HTTP Semantics} (RFC 9110). IETF. \url{https://www.rfc-editor.org/rfc/rfc9110}
+
+\item Hussain, S. S. (n.d.). \textit{SQL injection dataset}. Kaggle. \url{https://www.kaggle.com/datasets/syedsaqlainhussain/sql-injection-dataset}
+
+\item Kegel, D. (1999). \textit{The C10K problem}. \url{http://www.kegel.com/c10k.html}
+
+\item Liston, T. (2003). \textit{LaBrea: ``Sticky'' honeypot and IDS}.
+
+\item Liu, F. T., Ting, K. M., \& Zhou, Z. H. (2008). Isolation forest. \textit{Eighth IEEE International Conference on Data Mining}, 413--422.
+
+\item OWASP Foundation. (2024). \textit{OWASP testing guide v4}. \url{https://owasp.org}
+
+\item Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., \dots \& Duchesnay, E. (2011). Scikit-learn: Machine learning in Python. \textit{Journal of Machine Learning Research, 12}, 2825--2830.
+
+\item Python Software Foundation. (2024). \textit{http.server --- HTTP servers}. \url{https://docs.python.org/3/library/http.server.html}
+
+\item Shashikiran. (n.d.). \textit{Cookie security and vulnerabilities dataset - CSIC}. Kaggle. \url{https://www.kaggle.com/datasets/shashikiran42/cookie-security-and-vulnerabilities-dataset-cisc}
+
+\item Sid321axn. (n.d.). \textit{Malicious URLs dataset}. Kaggle. \url{https://www.kaggle.com/datasets/sid321axn/malicious-urls-dataset}
+
+\item Spitzner, L. (2003). \textit{Honeypots: Tracking hackers}. Addison-Wesley Professional.
+
+\item Telegram. (2024). \textit{Bot API}. \url{https://core.telegram.org/bots/api}
+
+\item Verizon. (2024). \textit{2024 Data Breach Investigations Report}. Verizon Enterprise. \url{https://www.verizon.com/business/resources/reports/dbir/}
+
+\end{itemize}
+
+\end{document}
