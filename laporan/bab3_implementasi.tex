@@ -6,7 +6,7 @@
 
 \subsection{Arsitektur Server}
 
-S.C.A.R. dibangun di atas arsitektur \textit{multi-threaded HTTP server} menggunakan pustaka standar \texttt{ThreadingHTTPServer} dari Python. Arsitektur \textit{Thread-per-Connection} ini memungkinkan server menangani sekumpulan soket masukan secara asinkron --- sebuah urgensi fungsional mengingat perputaran blok \textit{tarpit} memblokade antrean sekian detik per eksekusi di saat permintaan organik harus dijawab.
+S.C.A.R. dibangun di atas arsitektur \textit{multi-threaded HTTP server} menggunakan pustaka standar \texttt{ThreadingHTTPServer} dari Python. Arsitektur \textit{Thread-per-Connection} ini memungkinkan server menangani sekumpulan soket masukan secara asinkron --- sebuah urgensi fungsional mengingat perputaran blok \textit{tarpit} menahan antrean beberapa detik per eksekusi sementara \textit{request} normal harus tetap dilayani.
 
 \begin{figure}[H]
 \centering
@@ -289,7 +289,7 @@ Meskipun sistem S.C.A.R. berfungsi sesuai rancangan, terdapat beberapa batasan t
 \begin{enumerate}[label=\arabic*.]
     \item \textbf{Kelemahan terhadap Ribuan Koneksi Singkat}: Pola \textit{Thread-per-Connection} membutuhkan CPU dan RAM secara linier. Jika penyerang membuka ribuan koneksi singkat secara masif tanpa menunggu balasan (skenario \textit{flooding}), server akan kehabisan sumber daya akibat \textit{overhead} penciptaan \textit{thread} sebelum \textit{tarpit} sempat menahan penyerang (merujuk pada \textit{C10K problem} dari Kegel, 1999). Dibutuhkan pertahanan \textit{rate limiting} di lapisan infrastruktur (contoh: WAF/Firewall) untuk skenario \textit{Denial of Service} murni.
     \item \textbf{Pemindai Asinkron (\textit{ZMap/Masscan})}: Tarpit mengasumsikan pemindai bersifat sinkron (\textit{blocking}). Terhadap pemindai internet luas dengan arsitektur \textit{stateless/asynchronous} (Durumeric et al., 2013), mekanisme ini tidak efektif karena \textit{library} pemindai tidak menahan \textit{thread} untuk menunggu respons.
-    \item \textbf{Intervensi \textit{Reverse Proxy}} (\textit{Middleboxes Buffering}): Menurut RFC~9110 (Fielding et al., 2022), perangkat perantara jaringan (seperti NGINX atau server \textit{cache}) seringkali melakukan \textit{buffering} penuh terhadap \textit{chunked response}. Bila honeypot ini diatur di belakang proxy semacam itu, \textit{garbage stream} abadi justru akan menghabiskan memori server proxy internal kita sendiri alih-alih merugikan infrastruktur penyerang.
+    \item \textbf{Intervensi \textit{Reverse Proxy}} (\textit{Middleboxes Buffering}): Menurut RFC~9110 (Fielding et al., 2022), perangkat perantara jaringan (seperti NGINX atau server \textit{cache}) seringkali melakukan \textit{buffering} penuh terhadap \textit{chunked response}. Bila honeypot ini diatur di belakang proxy semacam itu, aliran data sampah tanpa henti justru akan menghabiskan memori server proxy internal kita sendiri alih-alih merugikan infrastruktur penyerang.
     \item \textbf{Ketergantungan \textit{Client-Side Timeout}}: Di luar efek proxy, efektivitas murni \textit{tarpit} juga dibatasi secara deterministik oleh regulasi \textit{timeout} sisi aplikasi klien inisiator.
     \item \textbf{Generalisasi Model ML terpusat pada \textit{Localhost}}: Tingkat \textit{false negative} secara sejati pada lalu lintas jaringan publik belum terkuantifikasi, mengingat simulasi purwarupa ini hanya diujikan pada kondisi tertutup menggunakan alamat \texttt{127.0.0.1}.
 \end{enumerate}
