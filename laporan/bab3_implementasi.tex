@@ -137,7 +137,7 @@ Project_SCAR/
 +-- README.md
 \end{lstlisting}
 
-Keenam berkas \texttt{.pkl} (\textit{pickle}) di atas merupakan representasi biner statis dari komputasi pelatihan fase *cloud*. Rasio 6 berkas untuk 4 model fusi dijelaskan sebagai berikut:
+Keenam berkas \texttt{.pkl} (\textit{pickle}) di atas merupakan representasi biner statis dari komputasi pelatihan fase \textit{cloud}. Rasio 6 berkas untuk 4 model fusi dijelaskan sebagai berikut:
 \begin{itemize}
     \item \textbf{Model Klasifikasi Teks (\texttt{url\_model}, \texttt{sqli\_model})} masing-masing membutuhkan pasangan \textbf{\texttt{\_vectorizer.pkl}}. Berkas \textit{vectorizer} bertugas menyimpan memori kamus kosakata asali (\textit{vocabulary state}) dari \textit{Term Frequency - Inverse Document Frequency} (TF-IDF). Tanpa \textit{vectorizer} ini, model matematis regresi logistik tidak akan mampu menerjemahkan \textit{string} mentah baru ke dalam matriks numerik yang dimensinya sejajar dengan format saat pelatihan awal.
     \item \textbf{Model Tebaran Statistik (\texttt{behavior\_model}, \texttt{anomaly\_model})} hanya berdiri tunggal tanpa pasangan proksi vektor. Hal ini dikarenakan algoritma dasarnya (\textit{Random Forest} dan \textit{Isolation Forest}) langsung mengonsumsi matriks fitur tabuler hasil ekstraksi matematika murni $O(N)$ (contoh: kalkulasi panjang karakter, intensitas parameter) sehingga leksikon prasyarat teks tidak diperlukan.
